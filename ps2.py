@@ -35,7 +35,54 @@ def traffic_light_detection(img_in, radii_range):
         state (str): traffic light state. A value in {'red', 'yellow',
                      'green'}
     """
-    raise NotImplementedError
+    cv2.imshow("traffic light", img_in)
+    img_gray = cv2.cvtColor(img_in, cv2.COLOR_BGR2GRAY)
+    print(radii_range[-1])
+    a = None
+    circles = cv2.HoughCircles(
+        img_gray, cv2.HOUGH_GRADIENT, 1, 20,
+        circles=a,
+        param1=20,
+        param2=10,
+        minRadius=radii_range[0],
+        maxRadius=radii_range[-1] + 10)
+    print(a)
+    print(circles.shape)
+    img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+
+    for circle in circles[0]:
+        img = cv2.circle(img, (circle[0], circle[1]),
+                         circle[2], (0, 0, 255), 1)
+    cv2.imshow("traffic light w/ circles", img)
+
+    circles = circles[0]
+
+    green_light = circles[0]
+    yellow_light = circles[1]
+    red_light = circles[2]
+
+    coordinates = (yellow_light[0], yellow_light[1])
+
+    overall_brightest = None
+    overall_brightest_name = None
+    for color_name, color in zip(['green', 'yellow', 'red'], circles):
+
+        # TODO figure out the indexes, this is pointing to some rando pixel
+        center = img_in[int(np.floor(color[0])), int(np.floor(color[1])), :]
+        print(center)
+
+        # Not good enough to do this naively, probably need to sum over
+        # or something
+
+        max_brightness = np.sum(center)
+        print(color_name, max_brightness)
+        if overall_brightest is None or max_brightness > overall_brightest:
+            overall_brightest = max_brightness
+            overall_brightest_name = color_name
+    print(coordinates)
+    print(overall_brightest_name)
+    cv2.waitKey(0)
+    return coordinates, overall_brightest_name
 
 
 def yield_sign_detection(img_in):
@@ -197,17 +244,23 @@ for the autograder.
 """
 
 # Part 2 outputs
+
+
 def ps2_2_a_1(img_in):
     return do_not_enter_sign_detection(img_in)
+
 
 def ps2_2_a_2(img_in):
     return stop_sign_detection(img_in)
 
+
 def ps2_2_a_3(img_in):
     return construction_sign_detection(img_in)
 
+
 def ps2_2_a_4(img_in):
     return warning_sign_detection(img_in)
+
 
 def ps2_2_a_5(img_in):
     return yield_sign_detection(img_in)
@@ -217,19 +270,21 @@ def ps2_2_a_5(img_in):
 def ps2_3_a_1(img_in):
     return traffic_sign_detection(img_in)
 
+
 def ps2_3_a_2(img_in):
     return traffic_sign_detection(img_in)
-
 
 
 # Part 4 outputs
 def ps2_4_a_1(img_in):
     return traffic_sign_detection_noisy(img_in)
 
+
 def ps2_4_a_2(img_in):
     return traffic_sign_detection_noisy(img_in)
 
 # Part 5 outputs
+
+
 def ps2_5_a(img_in):
     return traffic_sign_detection_challenge(img_in)
-

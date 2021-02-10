@@ -18,6 +18,7 @@ text_thickness = 2
 font_face = cv2.FONT_HERSHEY_SIMPLEX
 font_scale = 0.5
 
+
 def place_text(text, center, img, cache={}):
     if "y_offset" in cache:
         cache["y_offset"] *= -1
@@ -29,10 +30,10 @@ def place_text(text, center, img, cache={}):
         x = center[0] - size[0][0] - 5
     else:
         x = center[0] + 5
-    cv2.rectangle(img,(x,y - size[0][1] - size[1]),(x + size[0][0], y + size[0][1] - size[1]),(255,255,255),cv2.FILLED)
-    cv2.putText(img, text, (x, y), font_face, font_scale, text_color, text_thickness)
-
-
+    cv2.rectangle(img, (x, y - size[0][1] - size[1]), (x + size[0]
+                                                       [0], y + size[0][1] - size[1]), (255, 255, 255), cv2.FILLED)
+    cv2.putText(img, text, (x, y), font_face,
+                font_scale, text_color, text_thickness)
 
 
 def draw_tl_center(image_in, center, state):
@@ -64,12 +65,11 @@ def draw_tl_center(image_in, center, state):
     """
     center = (int(center[0]), int(center[1]))
     output = image_in
-    cv2.drawMarker(output, center, marker_color, markerType=cv2.MARKER_CROSS, markerSize=11, thickness=2)
+    cv2.drawMarker(output, center, marker_color,
+                   markerType=cv2.MARKER_CROSS, markerSize=11, thickness=2)
     text = "(({}, {}), '{}')".format(center[0], center[1], state)
     place_text(text, center, output)
     return output
-
-
 
 
 def mark_traffic_signs(image_in, signs_dict):
@@ -101,7 +101,8 @@ def mark_traffic_signs(image_in, signs_dict):
 
     for _, k, center in items:
         center = (int(center[0]), int(center[1]))
-        cv2.drawMarker(output, center, marker_color, markerType=cv2.MARKER_CROSS, markerSize=11, thickness=2)
+        cv2.drawMarker(output, center, marker_color,
+                       markerType=cv2.MARKER_CROSS, markerSize=11, thickness=2)
         text = "{}: ({}, {})".format(k, center[0], center[1])
         place_text(text, center, output)
     return output
@@ -133,7 +134,8 @@ def part_2():
     output_labels = ['ps2-2-a-1', 'ps2-2-a-2', 'ps2-2-a-3', 'ps2-2-a-4',
                      'ps2-2-a-5']
 
-    sign_fns = [ps2.ps2_2_a_1, ps2.ps2_2_a_2, ps2.ps2_2_a_3, ps2.ps2_2_a_4, ps2.ps2_2_a_5]
+    sign_fns = [ps2.ps2_2_a_1, ps2.ps2_2_a_2,
+                ps2.ps2_2_a_3, ps2.ps2_2_a_4, ps2.ps2_2_a_5]
 
     sign_labels = ['no_entry', 'stop', 'construction', 'warning', 'yield']
 
@@ -187,7 +189,8 @@ def part_5a():
     output_labels = ['ps2-5-a-1', 'ps2-5-a-2', 'ps2-5-a-3']
 
     for img_in, label in zip(input_images, output_labels):
-        scene = cv2.imread("input_images/challenge_images/{}.png".format(img_in))
+        scene = cv2.imread(
+            "input_images/challenge_images/{}.png".format(img_in))
         coords = ps2.ps2_5_a(scene.copy())
 
         img_out = mark_traffic_signs(scene, coords)
@@ -195,8 +198,13 @@ def part_5a():
 
 
 if __name__ == '__main__':
-    print("part_1");part_1()
-    print("part_2");part_2()
-    print("part_3");part_3()
-    print("part_4");part_4()
-    print("part_5a");part_5a()
+    print("part_1")
+    part_1()
+    print("part_2")
+    part_2()
+    print("part_3")
+    part_3()
+    print("part_4")
+    part_4()
+    print("part_5a")
+    part_5a()
