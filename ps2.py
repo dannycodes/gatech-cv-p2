@@ -6,6 +6,82 @@ import cv2
 import numpy as np
 
 
+# Helper methods I Made
+def find_circles(img, dp, min_dist, **kwargs):
+    circles = cv2.HoughCircles(
+        img, cv2.HOUGH_GRADIENT, dp, min_dist, **kwargs)
+    return circles[0]
+
+
+def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
+                               param1=None, param2=None, minradius=None,
+                               maxradius=None):
+    TITLE_WINDOW = "Circle Stuff"  # A constant for param exploration plot
+
+    ##
+    # Use those params to
+    # find circles using hough transform
+    ##
+    def circle_param_finder():
+        # Draw circles onto draw_on
+        draw_on = np.copy(draw_on_img)
+
+        circles = find_circles(img, dp, min_dist,
+                               param1=param1,
+                               param2=param2,
+                               minRadius=minradius,
+                               maxRadius=maxradius)
+
+        for circle in circles:
+
+            cv2.circle(draw_on, (circle[0], circle[1]),
+                       circle[2], (255, 255, 255), 1)
+
+        # TOGGLE THIS IF YOU WANT TO WORK WITH PARAMS
+        cv2.imshow(TITLE_WINDOW, draw_on)
+        return circles
+
+    def on_dp(_dp):
+        nonlocal dp
+        dp = _dp
+        print(dp)
+        circle_param_finder()
+
+    def on_min_dist(_min_dist):
+        nonlocal min_dist
+        min_dist = _min_dist
+        circle_param_finder()
+
+    def on_param_1(_in):
+        nonlocal param1
+        param1 = _in
+        circle_param_finder()
+
+    def on_param_2(_in):
+        nonlocal param2
+        param2 = _in
+        circle_param_finder()
+
+    def on_min_radius(_in):
+        nonlocal minradius
+        minradius = _in
+        circle_param_finder()
+
+    def on_max_radius(_in):
+        nonlocal maxradius
+        maxradius = _in
+        circle_param_finder()
+
+    cv2.namedWindow(TITLE_WINDOW)
+    cv2.createTrackbar("dp", TITLE_WINDOW, dp, 10, on_dp)
+    cv2.createTrackbar("minDist", TITLE_WINDOW, min_dist, 50, on_min_dist)
+    cv2.createTrackbar("param1", TITLE_WINDOW, param1, 10, on_param_1)
+    cv2.createTrackbar("param2", TITLE_WINDOW, param2, 100, on_param_2)
+    cv2.createTrackbar("minRadius", TITLE_WINDOW, minradius, 10, on_min_radius)
+    cv2.createTrackbar("maxRadius", TITLE_WINDOW, maxradius, 40, on_max_radius)
+    return circle_param_finder()
+
+
 def traffic_light_detection(img_in, radii_range):
     """Finds the coordinates of a traffic light image given a radii
     range.
@@ -35,53 +111,90 @@ def traffic_light_detection(img_in, radii_range):
         state (str): traffic light state. A value in {'red', 'yellow',
                      'green'}
     """
-    cv2.imshow("traffic light", img_in)
+
+    img_in = np.copy(img_in)
+    # draw_on = np.copy(img_in)
     img_gray = cv2.cvtColor(img_in, cv2.COLOR_BGR2GRAY)
-    print(radii_range[-1])
-    a = None
-    circles = cv2.HoughCircles(
-        img_gray, cv2.HOUGH_GRADIENT, 1, 20,
-        circles=a,
-        param1=20,
-        param2=10,
-        minRadius=radii_range[0],
-        maxRadius=radii_range[-1] + 10)
-    print(a)
-    print(circles.shape)
-    img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
-    for circle in circles[0]:
-        img = cv2.circle(img, (circle[0], circle[1]),
-                         circle[2], (0, 0, 255), 1)
-    cv2.imshow("traffic light w/ circles", img)
+    ##
+    # Hough Parameters (Found Experimentally)
+    ##
 
-    circles = circles[0]
+    dp = 1
+    min_dist = 42
+    param1 = 1
+    param2 = 5
+    minradius = 10
+    maxradius = 31
 
-    green_light = circles[0]
+    # circles = find_circles_parameterized(img_gray, draw_on,
+    #                                      dp=dp,
+    #                                      min_dist=min_dist,
+    #                                      param1=param1,
+    #                                      param2=param2,
+    #                                      minradius=minradius,
+    #                                      maxradius=maxradius)
+
+    circles = find_circles(img_gray, dp, min_dist,
+                           param1=param1,
+                           param2=param2,
+                           minRadius=minradius,
+                           maxRadius=maxradius)
+
+    # Handle the sun
+    # TODO: Only deletes the 4th item
+    # To make more general, instead keep the smallest 3 items
+    # NOTE: IF we assume that the stoplight will be aligned vertically,
+    # we can dramatically improve the distance measure
+    if len(circles) > 3:
+        # we've detected the sun
+        coords = circles[:, (0, 1)]
+        circle_count = len(circles)
+        farthest_object_idx = None
+        farthest_object_closeness_score = None
+        for i, c in enumerate(coords):
+            global_closeness = 0
+            for j in range(circle_count):
+                if j != i:
+                    global_closeness += np.sqrt(np.sum(((c - coords[j]) ** 2)))
+            if farthest_object_closeness_score is None or \
+                    global_closeness > farthest_object_closeness_score:
+                farthest_object_closeness_score = global_closeness
+                farthest_object_idx = i
+        circles = np.delete(circles, (farthest_object_idx), axis=0)
+
+    # grab coordinates for yellow (should be middle circle)
+    # TODO Do this by color of found pixel?
     yellow_light = circles[1]
-    red_light = circles[2]
-
     coordinates = (yellow_light[0], yellow_light[1])
 
+    # Find the "brightest" light
+    # This will be the 'on' light
+    # TODO This logic might be brittle
     overall_brightest = None
     overall_brightest_name = None
-    for color_name, color in zip(['green', 'yellow', 'red'], circles):
-
-        # TODO figure out the indexes, this is pointing to some rando pixel
-        center = img_in[int(np.floor(color[0])), int(np.floor(color[1])), :]
-        print(center)
+    for color_name, color in zip(['red', 'yellow', 'green'], circles):
+        x = int(np.floor(color[0]))
+        y = int(np.floor(color[1]))
+        cv2.imshow(color_name, img_in[y-35:y+35, x-35:x+35, :])
+        center = img_in[y, x, :]
 
         # Not good enough to do this naively, probably need to sum over
         # or something
+        if color_name == "yellow":
+            max_brightness = np.sum(center) / 2
+        else:
+            max_brightness = np.sum(center)
 
-        max_brightness = np.sum(center)
-        print(color_name, max_brightness)
+        # print(color_name, max_brightness, center)
         if overall_brightest is None or max_brightness > overall_brightest:
             overall_brightest = max_brightness
             overall_brightest_name = color_name
-    print(coordinates)
-    print(overall_brightest_name)
-    cv2.waitKey(0)
+
+    # print(coordinates, overall_brightest_name)
+    # cv2.imshow("traffic light original", img_in)
+    # cv2.imshow("traffic light", draw_on)
+    # cv2.waitKey(0)
     return coordinates, overall_brightest_name
 
 
@@ -95,6 +208,7 @@ def yield_sign_detection(img_in):
     Returns:
         (x,y) tuple of coordinates of the center of the yield sign.
     """
+
     raise NotImplementedError
 
 
@@ -121,6 +235,8 @@ def warning_sign_detection(img_in):
     Returns:
         (x,y) tuple of the coordinates of the center of the sign.
     """
+
+    # detect a stop sign
     raise NotImplementedError
 
 
@@ -147,7 +263,40 @@ def do_not_enter_sign_detection(img_in):
     Returns:
         (x,y) typle of the coordinates of the center of the sign.
     """
-    raise NotImplementedError
+    img_in = np.copy(img_in)
+    draw_on = np.copy(img_in)
+    img_gray = cv2.cvtColor(img_in, cv2.COLOR_BGR2GRAY)
+    # cv2.imshow("DO NOT ENTER", img_in)
+
+    dp = 1
+    min_dist = 10
+    param1 = 1
+    param2 = 10
+    minradius = 7
+    maxradius = 37
+
+    circles = find_circles_parameterized(img_gray, draw_on,
+                                         dp=dp,
+                                         min_dist=min_dist,
+                                         param1=param1,
+                                         param2=param2,
+                                         minradius=minradius,
+                                         maxradius=maxradius)
+
+    # circles = find_circles(img_gray, dp, min_dist,
+    #                        param1=param1,
+    #                        param2=param2,
+    #                        minRadius=minradius,
+    #                        maxRadius=maxradius)
+
+    print(circles[0])
+    x = int(circles[0][0])
+    y = int(circles[0][1])
+
+    cv2.imshow('one way sign', img_in[y-40:y+40, x-40:x+40, :])
+    cv2.waitKey(0)
+
+    return y, x  # reversed for numpy
 
 
 def traffic_sign_detection(img_in):
@@ -235,11 +384,14 @@ def traffic_sign_detection_challenge(img_in):
     raise NotImplementedError
 
 
-################################ CHANGE BELOW FOR MORE CUSTOMIZATION #######################
-""" The functions below are used for each individual part of the report section.
+# CHANGE BELOW FOR MORE CUSTOMIZATION ##
+#####################
+""" The functions below are used for each individual part of
+the report section.
 
-Feel free to change the return statements but ensure that the return type remains the same 
-for the autograder. 
+Feel free to change the return statements but ensure that the return type
+remains the same
+for the autograder.
 
 """
 
