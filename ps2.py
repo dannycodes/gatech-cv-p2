@@ -35,7 +35,7 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
         for circle in circles:
 
             cv2.circle(draw_on, (circle[0], circle[1]),
-                       circle[2], (255, 255, 255), 1)
+                       circle[2], (0, 0, 0), 3)
 
         # TOGGLE THIS IF YOU WANT TO WORK WITH PARAMS
         cv2.imshow(TITLE_WINDOW, draw_on)
