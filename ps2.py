@@ -6,10 +6,85 @@ import cv2
 import numpy as np
 
 
-# Helper methods I Made
+def find_lines(img, rho, theta, threshold, **kwargs):
+    return cv2.HoughLines(img, rho, theta, threshold)
+
+
+def find_lines_parameterized(img, draw_on_img,
+                             rho, theta, threshold,
+                             minLineLength=None, maxLineGap=None):
+
+    TITLE_WINDOW = "Line Stuff"
+
+    def find_lines_for_params():
+        draw_on = np.copy(draw_on_img)
+        found_lines = find_lines(img, rho, np.pi / theta, threshold,
+                                 minLineLength=minLineLength,
+                                 maxLineGap=maxLineGap)
+        if found_lines is not None:
+
+            for line in found_lines:
+
+                line = line[0]
+                _rho, _theta = line
+                a = np.cos(_theta)
+                b = np.sin(_theta)
+                x0 = a*_rho
+                y0 = b*_rho
+                x1 = int(x0 + 1000*(-b))
+                y1 = int(y0 + 1000*(a))
+                x2 = int(x0 - 1000*(-b))
+                y2 = int(y0 - 1000*(a))
+                draw_on = cv2.line(draw_on,
+                                   (x1, y1),
+                                   (x2, y2),
+                                   (0, 0, 0),
+                                   3)
+        cv2.imshow(TITLE_WINDOW, draw_on)
+
+        return found_lines
+
+    def on_rho(_rho):
+        nonlocal rho
+        rho = _rho
+        find_lines_for_params()
+
+    def on_theta(_theta):
+        nonlocal theta
+        theta = _theta
+        find_lines_for_params()
+
+    def on_threshold(_threshold):
+        nonlocal threshold
+        threshold = _threshold
+        find_lines_for_params()
+
+    def on_minLineLength(_minLineLength):
+        nonlocal minLineLength
+        minLineLength = _minLineLength
+        find_lines_for_params()
+
+    def on_maxLineGap(_maxLineGap):
+        nonlocal maxLineGap
+        maxLineGap = _maxLineGap
+        find_lines_for_params()
+
+    cv2.namedWindow(TITLE_WINDOW)
+    cv2.createTrackbar("rho", TITLE_WINDOW, rho, 10, on_rho)
+    cv2.createTrackbar("theta", TITLE_WINDOW, theta, 500, on_theta)
+    cv2.createTrackbar("threshold", TITLE_WINDOW, threshold, 500, on_threshold)
+    cv2.createTrackbar("minLineLength", TITLE_WINDOW,
+                       minLineLength, 30, on_minLineLength)
+    cv2.createTrackbar("maxLineGap", TITLE_WINDOW,
+                       maxLineGap, 60, on_maxLineGap)
+    return find_lines_for_params()
+
+
 def find_circles(img, dp, min_dist, **kwargs):
     circles = cv2.HoughCircles(
         img, cv2.HOUGH_GRADIENT, dp, min_dist, **kwargs)
+    if circles is None:
+        return circles
     return circles[0]
 
 
@@ -31,14 +106,14 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
                                param2=param2,
                                minRadius=minradius,
                                maxRadius=maxradius)
+        if circles is not None:
+            for circle in circles:
 
-        for circle in circles:
-
-            cv2.circle(draw_on, (circle[0], circle[1]),
-                       circle[2], (0, 0, 0), 3)
+                cv2.circle(draw_on, (circle[0], circle[1]),
+                           circle[2], (0, 0, 0), 1)
 
         # TOGGLE THIS IF YOU WANT TO WORK WITH PARAMS
-        cv2.imshow(TITLE_WINDOW, draw_on)
+        # cv2.imshow(TITLE_WINDOW, draw_on)
         return circles
 
     def on_dp(_dp):
@@ -75,10 +150,10 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
     cv2.namedWindow(TITLE_WINDOW)
     cv2.createTrackbar("dp", TITLE_WINDOW, dp, 10, on_dp)
     cv2.createTrackbar("minDist", TITLE_WINDOW, min_dist, 50, on_min_dist)
-    cv2.createTrackbar("param1", TITLE_WINDOW, param1, 10, on_param_1)
-    cv2.createTrackbar("param2", TITLE_WINDOW, param2, 100, on_param_2)
-    cv2.createTrackbar("minRadius", TITLE_WINDOW, minradius, 10, on_min_radius)
-    cv2.createTrackbar("maxRadius", TITLE_WINDOW, maxradius, 40, on_max_radius)
+    cv2.createTrackbar("param1", TITLE_WINDOW, param1, 100, on_param_1)
+    cv2.createTrackbar("param2", TITLE_WINDOW, param2, 200, on_param_2)
+    cv2.createTrackbar("minRadius", TITLE_WINDOW, minradius, 30, on_min_radius)
+    cv2.createTrackbar("maxRadius", TITLE_WINDOW, maxradius, 60, on_max_radius)
     return circle_param_finder()
 
 
@@ -176,7 +251,7 @@ def traffic_light_detection(img_in, radii_range):
     for color_name, color in zip(['red', 'yellow', 'green'], circles):
         x = int(np.floor(color[0]))
         y = int(np.floor(color[1]))
-        cv2.imshow(color_name, img_in[y-35:y+35, x-35:x+35, :])
+        # cv2.imshow(color_name, img_in[y-35:y+35, x-35:x+35, :])
         center = img_in[y, x, :]
 
         # Not good enough to do this naively, probably need to sum over
@@ -208,8 +283,85 @@ def yield_sign_detection(img_in):
     Returns:
         (x,y) tuple of coordinates of the center of the yield sign.
     """
+    valid_angles = [30, 150]
 
-    raise NotImplementedError
+    img = np.copy(img_in)
+    # lower_white = np.array([255, 255, 255])
+    # upper_white = np.array([255, 255, 255])
+    # mask = cv2.inRange(img, lower_white, upper_white)
+    # res = cv2.bitwise_and(img, img, mask=mask)
+
+    # cv2.imshow('yield sign', img)
+    # cv2.imshow('masked', res)
+
+    # cv2.waitKey(0)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    draw_on = np.copy(img_in)
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+    rho = 1
+    theta = 180
+    threshold = 38
+    minLineLength = 21
+    maxLineGap = 42
+
+    # cv2.imshow('canny', edges)
+
+    # lines = find_lines(edges, rho, np.pi / theta, threshold,
+    #                    minLineLength=minLineLength,
+    #                    maxLineGap=maxLineGap)
+    lines = find_lines_parameterized(edges, draw_on, rho, theta,
+                                     threshold,
+                                     minLineLength=minLineLength,
+                                     maxLineGap=maxLineGap)
+
+    sides = None
+    for angle in valid_angles:
+        _sides = lines[np.isclose(lines[:, 0, 1], np.radians(angle)), :, :]
+        _sides = _sides.squeeze()
+        # idx = np.argmin(_sides[:, 0])
+        # _sides = _sides[[idx], :]
+
+        if sides is None:
+            sides = _sides
+        else:
+            sides = np.vstack((sides, _sides))
+
+    intersects = None
+    for i in range(len(sides)):
+        for j in range(len(sides)):
+            if i != j and i < j:
+                _thetas = sides[(i, j), 1]
+                _rhos = sides[(i, j), 0]
+                a = np.array((np.sin(_thetas), np.cos(_thetas))).T
+                b = _rhos
+                try:
+                    _intersects = np.linalg.solve(a, b)
+                except np.linalg.LinAlgError:
+                    continue
+
+                if intersects is None:
+                    intersects = _intersects
+                else:
+                    intersects = np.vstack((intersects, _intersects))
+    x_max = np.max(intersects[:, 0])
+    x_min = np.min(intersects[:, 0])
+    SCALE_FACTOR = 6  # Only hardcoded piece (ratio for yield sign)
+    height = x_max - x_min
+    x_center = x_min - height * SCALE_FACTOR * (1.0/3)
+    y_center = np.mean(intersects[:, 1])
+
+    # center = np.sum(intersects, axis=0) / 3
+    for intersect in intersects:
+        print(intersects)
+        print(tuple(intersect))
+        img = cv2.circle(img, (intersect[1], intersect[0]), 3, (0, 0, 0), 1)
+    print(y_center, x_center)
+    img = cv2.circle(img, (int(y_center), int(x_center)), 3, (0, 0, 0), 1)
+    cv2.imshow("yield", img)
+    cv2.waitKey(0)
+    return y_center, x_center
+    # return center[1], center[0]
 
 
 def stop_sign_detection(img_in):
@@ -222,6 +374,37 @@ def stop_sign_detection(img_in):
     Returns:
         (x,y) tuple of the coordinates of the center of the stop sign.
     """
+    cv2.imshow('construction sign', img_in)
+    img = np.copy(img_in)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    draw_on = np.copy(img_in)
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+    rho = 1
+    theta = 180
+    threshold = 38
+    minLineLength = 21
+    maxLineGap = 42
+
+    # cv2.imshow('canny', edges)
+
+    # lines = find_lines(edges, rho, np.pi / theta, threshold,
+    #                    minLineLength=minLineLength,
+    #                    maxLineGap=maxLineGap)
+
+    lines = find_lines_parameterized(edges, draw_on, rho, theta,
+                                     threshold,
+                                     minLineLength=minLineLength,
+                                     maxLineGap=maxLineGap)
+    # # get distance of each row
+    # dists = np.sqrt((lines[:, :, 0] - lines[:, :, 2]) ** 2 +
+    #                 (lines[:, :, 1] - lines[:, :, 3]) ** 2)
+    # dists[dists > 50]
+    # interesting_lines
+
+    print(lines)
+
+    cv2.waitKey(0)
     raise NotImplementedError
 
 
@@ -250,6 +433,8 @@ def construction_sign_detection(img_in):
     Returns:
         (x,y) tuple of the coordinates of the center of the sign.
     """
+    cv2.imshow('construction sign', img_in)
+    cv2.waitKey(0)
     raise NotImplementedError
 
 
@@ -264,37 +449,37 @@ def do_not_enter_sign_detection(img_in):
         (x,y) typle of the coordinates of the center of the sign.
     """
     img_in = np.copy(img_in)
-    draw_on = np.copy(img_in)
+    # draw_on = np.copy(img_in)
     img_gray = cv2.cvtColor(img_in, cv2.COLOR_BGR2GRAY)
     # cv2.imshow("DO NOT ENTER", img_in)
 
-    dp = 1
-    min_dist = 10
-    param1 = 1
-    param2 = 10
+    dp = 3
+    min_dist = 14
+    param1 = 16
+    param2 = 70
     minradius = 7
-    maxradius = 37
+    maxradius = 38
 
-    circles = find_circles_parameterized(img_gray, draw_on,
-                                         dp=dp,
-                                         min_dist=min_dist,
-                                         param1=param1,
-                                         param2=param2,
-                                         minradius=minradius,
-                                         maxradius=maxradius)
+    # circles = find_circles_parameterized(img_gray, draw_on,
+    #                                      dp=dp,
+    #                                      min_dist=min_dist,
+    #                                      param1=param1,
+    #                                      param2=param2,
+    #                                      minradius=minradius,
+    #                                      maxradius=maxradius)
 
-    # circles = find_circles(img_gray, dp, min_dist,
-    #                        param1=param1,
-    #                        param2=param2,
-    #                        minRadius=minradius,
-    #                        maxRadius=maxradius)
+    circles = find_circles(img_gray, dp, min_dist,
+                           param1=param1,
+                           param2=param2,
+                           minRadius=minradius,
+                           maxRadius=maxradius)
 
-    print(circles[0])
+    # print(circles[0])
     x = int(circles[0][0])
     y = int(circles[0][1])
 
-    cv2.imshow('one way sign', img_in[y-40:y+40, x-40:x+40, :])
-    cv2.waitKey(0)
+    # cv2.imshow('one way sign', img_in[y-40:y+40, x-40:x+40, :])
+    # cv2.waitKey(0)
 
     return y, x  # reversed for numpy
 
