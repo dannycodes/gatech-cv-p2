@@ -6,41 +6,226 @@ import cv2
 import numpy as np
 
 
-def find_lines(img, rho, theta, threshold, **kwargs):
-    return cv2.HoughLines(img, rho, theta, threshold)
+def filter_angle(lines, angles):
+    """ Provide angle in degrees"""
+    lines = lines.squeeze()
+    filtered_lines = None
+
+    def add(filtered_lines, line):
+        if filtered_lines is None:
+            filtered_lines = line
+        else:
+            filtered_lines = np.vstack((filtered_lines, line))
+        return filtered_lines
+
+    for line in lines:
+        for angle in angles:
+            if np.isclose(line[1], np.radians(angle), atol=np.radians(1)):
+                filtered_lines = add(filtered_lines, line)
+    return filtered_lines
 
 
-def find_lines_parameterized(img, draw_on_img,
-                             rho, theta, threshold,
-                             minLineLength=None, maxLineGap=None):
+def solve_for_intersection(lines):
+    print(lines)
+    thetas = lines[:, 1]
+    rhos = lines[:, 0]
+    a = np.array((np.sin(thetas), np.cos(thetas))).T
+    b = rhos
+    return np.linalg.solve(a, b)
 
-    TITLE_WINDOW = "Line Stuff"
+
+def solve_all_intersections(lines):
+    lines = lines.squeeze()
+    vertices = None
+    for idx, l1 in enumerate(lines):
+        print(l1)
+        for l2 in lines[idx+1:]:
+            try:
+                x = solve_for_intersection(np.array([l1, l2]))
+            except np.linalg.LinAlgError:
+                pass
+            if vertices is None:
+                vertices = x
+            else:
+                vertices = np.vstack((vertices, x))
+    return vertices
+
+
+def mask_image(img, lower_color, upper_color):
+    mask = cv2.inRange(img, lower_color, upper_color)
+    return cv2.bitwise_and(img, img, mask=mask)
+
+
+def blur_image(img, ksize=5):
+    return cv2.medianBlur(img, 5)
+
+
+def canny(img):
+    return cv2.Canny(img, 50, 150, apertureSize=3)
+
+
+def deduplicate_points(vertices, dist=10):
+    bins = []
+    deduped_vertex = None
+
+    def insert_vertex(deduped_vertex, vertex):
+        if deduped_vertex is None:
+            deduped_vertex = vertex
+        else:
+            deduped_vertex = np.vstack((deduped_vertex, vertex))
+        return deduped_vertex
+
+    for vertex in vertices:
+        if len(bins) == 0:
+            bins.append(vertex)
+            deduped_vertex = insert_vertex(deduped_vertex, vertex)
+        else:
+            rdists = [np.sqrt((b[0] - vertex[0]) ** 2 + (b[1] - vertex[1]) ** 2)
+                      for b in bins]
+
+            if np.all(np.array(rdists) > 10):
+                bins.append(vertex)
+                deduped_vertex = insert_vertex(deduped_vertex, vertex)
+    return deduped_vertex
+
+
+def deduplicate_lines(lines, atol=20):
+    """Takes lines from raw 
+    output"""
+    centers = []
+    deduped_lines = None
+    for line in lines.squeeze():
+        # dedup lines
+        # we want 4 lines
+        loc = np.linalg.norm(line)
+        if len(centers) == 0 or not np.any(np.isclose(loc, centers, atol=atol)):
+            centers.append(loc)
+            if deduped_lines is None:
+                deduped_lines = np.array([line])
+            else:
+                deduped_lines = np.vstack((deduped_lines, line))
+    return deduped_lines
+
+
+def group_parallel_lines(lines):
+    """Takes squeezed lines as input"""
+    parallel_bins = {}
+    for line in lines:
+        if len(parallel_bins) == 0:
+            parallel_bins[line[1]] = [line]
+        else:
+            keys = list(parallel_bins.keys())
+            closeness = np.isclose(line[1], np.array(
+                keys), atol=np.radians(10))
+            if np.any(closeness):
+                k = keys[np.where(closeness)[0][0]]
+                parallel_bins[k].append(line)
+            else:
+                parallel_bins[line[1]] = [line]
+    return list(parallel_bins.values())
+
+
+def parallelogram_vertices_from_grouped_lines(lines):
+    """Given an array of groups of lines
+        [np.array(lines), np.array(lines),...]
+        Return parallelogram vertices
+        Only works if there are two bins of parallel lines
+    """
+    if len(lines) > 2:
+        raise Exception("parallelogram finder \
+            called with too many lines")
+    c_1 = lines[0]
+    c_2 = lines[1]
+    intercepts = None
+    for l1, l2 in list(zip(c_1, c_2)) + list(zip(c_1, c_2[::-1])):
+        x = solve_for_intersection(np.array([l1, l2]))
+        if intercepts is None:
+            intercepts = np.array([x])
+        else:
+            intercepts = np.vstack((intercepts, x))
+    return intercepts
+
+
+def parallelogram_centroid_from_vertices(vertices):
+    return np.mean(vertices[:, 1]), np.mean(vertices[:, 0])
+
+
+def draw_lines_p(img, lines):
+    lines = lines.squeeze()
+    for line in lines:
+        img = cv2.line(img, (line[1], line[0]),
+                       (line[3], line[2]), (0, 0, 0), 1)
+    return img
+
+
+def threshold_hsv(color_img, lowH, lowS, lowV, highH, highS, highV):
+    hsv = cv2.cvtColor(color_img, cv2.COLOR_BGR2HSV)
+
+    TITLE_WINDOW = "Thresholding on HSV"
+
+    def do_threshold():
+        thresholded = cv2.inRange(
+            hsv, (lowH, lowS, lowV), (highH, highS, highV))
+        cv2.imshow(TITLE_WINDOW, thresholded)
+        return thresholded
+
+    def on_lowH(_lowH):
+        nonlocal lowH
+        lowH = _lowH
+        do_threshold()
+
+    def on_lowS(_lowS):
+        nonlocal lowS
+        lowS = _lowS
+        do_threshold()
+
+    def on_lowV(_lowV):
+        nonlocal lowV
+        lowV = _lowV
+        do_threshold()
+
+    def on_highH(_highH):
+        nonlocal highH
+        highH = _highH
+        do_threshold()
+
+    def on_highS(_highS):
+        nonlocal highS
+        highS = _highS
+        do_threshold()
+
+    def on_highV(_highV):
+        nonlocal highV
+        highV = _highV
+        do_threshold()
+
+    cv2.namedWindow(TITLE_WINDOW)
+    cv2.createTrackbar("lowH", TITLE_WINDOW, lowH, 179, on_lowH)
+    cv2.createTrackbar("lowS", TITLE_WINDOW, lowS, 255, on_lowS)
+    cv2.createTrackbar("lowV", TITLE_WINDOW, lowV, 255, on_lowV)
+    cv2.createTrackbar("highH", TITLE_WINDOW, highH, 179, on_highH)
+    cv2.createTrackbar("highS", TITLE_WINDOW, highS, 255, on_highS)
+    cv2.createTrackbar("highV", TITLE_WINDOW, highV, 255, on_highV)
+    do_threshold()
+
+
+def find_lines_p(img, rho, theta, threshold, **kwargs):
+    return cv2.HoughLinesP(img, rho, np.radians(theta), threshold, **kwargs)
+
+
+def find_lines_p_parameterized(img, draw_on_img, rho, theta, threshold,
+                               minLineLength=None,
+                               maxLineGap=None):
+    TITLE_WINDOW = "Hough P Line Stuff"
 
     def find_lines_for_params():
         draw_on = np.copy(draw_on_img)
-        found_lines = find_lines(img, rho, np.pi / theta, threshold,
-                                 minLineLength=minLineLength,
-                                 maxLineGap=maxLineGap)
+        found_lines = find_lines_p(img, rho, theta, threshold,
+                                   minLineLength=minLineLength,
+                                   maxLineGap=maxLineGap)
         if found_lines is not None:
-
-            for line in found_lines:
-
-                line = line[0]
-                _rho, _theta = line
-                a = np.cos(_theta)
-                b = np.sin(_theta)
-                x0 = a*_rho
-                y0 = b*_rho
-                x1 = int(x0 + 1000*(-b))
-                y1 = int(y0 + 1000*(a))
-                x2 = int(x0 - 1000*(-b))
-                y2 = int(y0 - 1000*(a))
-                draw_on = cv2.line(draw_on,
-                                   (x1, y1),
-                                   (x2, y2),
-                                   (0, 0, 0),
-                                   3)
-        cv2.imshow(TITLE_WINDOW, draw_on)
+            draw_on = draw_lines_p(draw_on, found_lines)
+            # cv2.imshow(TITLE_WINDOW, draw_on)
 
         return found_lines
 
@@ -74,9 +259,83 @@ def find_lines_parameterized(img, draw_on_img,
     cv2.createTrackbar("theta", TITLE_WINDOW, theta, 500, on_theta)
     cv2.createTrackbar("threshold", TITLE_WINDOW, threshold, 500, on_threshold)
     cv2.createTrackbar("minLineLength", TITLE_WINDOW,
-                       minLineLength, 30, on_minLineLength)
+                       minLineLength, 500, on_minLineLength)
     cv2.createTrackbar("maxLineGap", TITLE_WINDOW,
-                       maxLineGap, 60, on_maxLineGap)
+                       maxLineGap, 500, on_maxLineGap)
+
+    return find_lines_for_params()
+
+
+def find_lines(img, rho, theta, threshold, **kwargs):
+    return cv2.HoughLines(img, rho, np.pi / theta, threshold)
+
+
+def draw_lines(img, lines, color=(0, 0, 0)):
+    img = np.copy(img)
+    for line in lines.squeeze():
+        _rho, _theta = line
+        a = np.cos(_theta)
+        b = np.sin(_theta)
+        x0 = a*_rho
+        y0 = b*_rho
+        x1 = int(x0 + 1000*(-b))
+        y1 = int(y0 + 1000*(a))
+        x2 = int(x0 - 1000*(-b))
+        y2 = int(y0 - 1000*(a))
+        img = cv2.line(img,
+                       (x1, y1),
+                       (x2, y2),
+                       color,
+                       3)
+    return img
+
+
+def find_lines_parameterized(img, draw_on_img,
+                             rho, theta, threshold,
+                             minLineLength=None, maxLineGap=None):
+
+    TITLE_WINDOW = "Line Stuff"
+
+    def find_lines_for_params():
+        draw_on = np.copy(draw_on_img)
+        found_lines = find_lines(img, rho, theta, threshold,
+                                 minLineLength=minLineLength,
+                                 maxLineGap=maxLineGap)
+        if found_lines is not None:
+            draw_on = draw_lines(draw_on, found_lines)
+            cv2.imshow(TITLE_WINDOW, draw_on)
+
+        return found_lines
+
+    def on_rho(_rho):
+        nonlocal rho
+        rho = _rho
+        find_lines_for_params()
+
+    def on_theta(_theta):
+        nonlocal theta
+        theta = _theta
+        find_lines_for_params()
+
+    def on_threshold(_threshold):
+        nonlocal threshold
+        threshold = _threshold
+        find_lines_for_params()
+
+    def on_minLineLength(_minLineLength):
+        nonlocal minLineLength
+        minLineLength = _minLineLength
+        find_lines_for_params()
+
+    def on_maxLineGap(_maxLineGap):
+        nonlocal maxLineGap
+        maxLineGap = _maxLineGap
+        find_lines_for_params()
+
+    cv2.namedWindow(TITLE_WINDOW)
+    cv2.createTrackbar("rho", TITLE_WINDOW, rho, 10, on_rho)
+    cv2.createTrackbar("theta", TITLE_WINDOW, theta, 500, on_theta)
+    cv2.createTrackbar("threshold", TITLE_WINDOW, threshold, 500, on_threshold)
     return find_lines_for_params()
 
 
@@ -113,7 +372,7 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
                            circle[2], (0, 0, 0), 1)
 
         # TOGGLE THIS IF YOU WANT TO WORK WITH PARAMS
-        # cv2.imshow(TITLE_WINDOW, draw_on)
+        cv2.imshow(TITLE_WINDOW, draw_on)
         return circles
 
     def on_dp(_dp):
@@ -152,7 +411,8 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
     cv2.createTrackbar("minDist", TITLE_WINDOW, min_dist, 50, on_min_dist)
     cv2.createTrackbar("param1", TITLE_WINDOW, param1, 100, on_param_1)
     cv2.createTrackbar("param2", TITLE_WINDOW, param2, 200, on_param_2)
-    cv2.createTrackbar("minRadius", TITLE_WINDOW, minradius, 30, on_min_radius)
+    cv2.createTrackbar("minRadius", TITLE_WINDOW,
+                       minradius, 100, on_min_radius)
     cv2.createTrackbar("maxRadius", TITLE_WINDOW, maxradius, 60, on_max_radius)
     return circle_param_finder()
 
@@ -187,28 +447,43 @@ def traffic_light_detection(img_in, radii_range):
                      'green'}
     """
 
-    img_in = np.copy(img_in)
-    # draw_on = np.copy(img_in)
-    img_gray = cv2.cvtColor(img_in, cv2.COLOR_BGR2GRAY)
+    img = np.copy(img_in)
+    color_img = np.copy(img_in)
+    img = cv2.GaussianBlur(img, (5, 5), 0)
+    draw_on = np.copy(img)
+    img = blur_image(img, 5)
+    lowH = 1
+    lowS = 1
+    lowV = 1
+    highH = 10
+    highS = 255
+    highV = 255
+    cv2.imshow("cimg", color_img)
+    threshold_hsv(color_img, lowH, lowS, lowV, highH, highS, highV)
+    cv2.waitKey()
+    img = mask_image(img, (51, 51, 51), (51, 51, 51))
+    hsv_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2HSV)
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     ##
     # Hough Parameters (Found Experimentally)
     ##
 
-    dp = 1
-    min_dist = 42
-    param1 = 1
-    param2 = 5
-    minradius = 10
+    dp = 2
+    min_dist = 15
+    param1 = 34
+    param2 = 35
+    minradius = 1
     maxradius = 31
-
-    # circles = find_circles_parameterized(img_gray, draw_on,
-    #                                      dp=dp,
-    #                                      min_dist=min_dist,
-    #                                      param1=param1,
-    #                                      param2=param2,
-    #                                      minradius=minradius,
-    #                                      maxradius=maxradius)
+    cv2.imshow("grayed", img_gray)
+    circles = find_circles_parameterized(img_gray, draw_on,
+                                         dp=dp,
+                                         min_dist=min_dist,
+                                         param1=param1,
+                                         param2=param2,
+                                         minradius=minradius,
+                                         maxradius=maxradius)
+    cv2.waitKey(0)
 
     circles = find_circles(img_gray, dp, min_dist,
                            param1=param1,
@@ -216,31 +491,17 @@ def traffic_light_detection(img_in, radii_range):
                            minRadius=minradius,
                            maxRadius=maxradius)
 
-    # Handle the sun
-    # TODO: Only deletes the 4th item
-    # To make more general, instead keep the smallest 3 items
-    # NOTE: IF we assume that the stoplight will be aligned vertically,
-    # we can dramatically improve the distance measure
-    if len(circles) > 3:
-        # we've detected the sun
-        coords = circles[:, (0, 1)]
-        circle_count = len(circles)
-        farthest_object_idx = None
-        farthest_object_closeness_score = None
-        for i, c in enumerate(coords):
-            global_closeness = 0
-            for j in range(circle_count):
-                if j != i:
-                    global_closeness += np.sqrt(np.sum(((c - coords[j]) ** 2)))
-            if farthest_object_closeness_score is None or \
-                    global_closeness > farthest_object_closeness_score:
-                farthest_object_closeness_score = global_closeness
-                farthest_object_idx = i
-        circles = np.delete(circles, (farthest_object_idx), axis=0)
-
     # grab coordinates for yellow (should be middle circle)
     # TODO Do this by color of found pixel?
-    yellow_light = circles[1]
+    yellow_light = None
+    for circle in circles:
+        x = int(circle[1])
+        y = int(circle[0])
+        if hsv_img[x, y][0] == 30:
+            yellow_light = circle
+    if yellow_light is None:
+        print("COULD NOT FIND YELLOW LIGHT")
+        return None, None
     coordinates = (yellow_light[0], yellow_light[1])
 
     # Find the "brightest" light
@@ -286,35 +547,24 @@ def yield_sign_detection(img_in):
     valid_angles = [30, 150]
 
     img = np.copy(img_in)
-    # lower_white = np.array([255, 255, 255])
-    # upper_white = np.array([255, 255, 255])
-    # mask = cv2.inRange(img, lower_white, upper_white)
-    # res = cv2.bitwise_and(img, img, mask=mask)
-
-    # cv2.imshow('yield sign', img)
-    # cv2.imshow('masked', res)
-
-    # cv2.waitKey(0)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     draw_on = np.copy(img_in)
+    img = mask_image(img, (0, 0, 255), (0, 0, 255))
+    img = blur_image(img, 5)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
 
     rho = 1
     theta = 180
     threshold = 38
-    minLineLength = 21
-    maxLineGap = 42
 
-    # cv2.imshow('canny', edges)
+    lines = find_lines(edges, rho, theta, threshold)
+    # lines = find_lines_parameterized(edges, draw_on, rho, theta,
+    #                                  threshold,
+    #                                  minLineLength=minLineLength,
+    #                                  maxLineGap=maxLineGap)
 
-    # lines = find_lines(edges, rho, np.pi / theta, threshold,
-    #                    minLineLength=minLineLength,
-    #                    maxLineGap=maxLineGap)
-    lines = find_lines_parameterized(edges, draw_on, rho, theta,
-                                     threshold,
-                                     minLineLength=minLineLength,
-                                     maxLineGap=maxLineGap)
-
+    if lines is None:
+        return None
     sides = None
     for angle in valid_angles:
         _sides = lines[np.isclose(lines[:, 0, 1], np.radians(angle)), :, :]
@@ -326,7 +576,6 @@ def yield_sign_detection(img_in):
             sides = _sides
         else:
             sides = np.vstack((sides, _sides))
-
     intersects = None
     for i in range(len(sides)):
         for j in range(len(sides)):
@@ -344,6 +593,8 @@ def yield_sign_detection(img_in):
                     intersects = _intersects
                 else:
                     intersects = np.vstack((intersects, _intersects))
+    if intersects is None:
+        return None
     x_max = np.max(intersects[:, 0])
     x_min = np.min(intersects[:, 0])
     SCALE_FACTOR = 6  # Only hardcoded piece (ratio for yield sign)
@@ -353,15 +604,14 @@ def yield_sign_detection(img_in):
 
     # center = np.sum(intersects, axis=0) / 3
     for intersect in intersects:
-        print(intersects)
-        print(tuple(intersect))
+        # print(intersects)
+        # print(tuple(intersect))
         img = cv2.circle(img, (intersect[1], intersect[0]), 3, (0, 0, 0), 1)
-    print(y_center, x_center)
+    # print(y_center, x_center)
     img = cv2.circle(img, (int(y_center), int(x_center)), 3, (0, 0, 0), 1)
-    cv2.imshow("yield", img)
-    cv2.waitKey(0)
+    # cv2.imshow("yield", img)
+    # cv2.waitKey(0)
     return y_center, x_center
-    # return center[1], center[0]
 
 
 def stop_sign_detection(img_in):
@@ -374,38 +624,65 @@ def stop_sign_detection(img_in):
     Returns:
         (x,y) tuple of the coordinates of the center of the stop sign.
     """
-    cv2.imshow('construction sign', img_in)
     img = np.copy(img_in)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     draw_on = np.copy(img_in)
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+    img = mask_image(img,
+                     np.array([0, 0, 204]),
+                     np.array([0, 0, 204]))
+    img = blur_image(img, 5)
+    edges = canny(img)
 
     rho = 1
     theta = 180
-    threshold = 38
-    minLineLength = 21
-    maxLineGap = 42
+    threshold = 30
 
     # cv2.imshow('canny', edges)
 
-    # lines = find_lines(edges, rho, np.pi / theta, threshold,
-    #                    minLineLength=minLineLength,
-    #                    maxLineGap=maxLineGap)
+    lines = find_lines(edges, rho, theta, threshold)
 
-    lines = find_lines_parameterized(edges, draw_on, rho, theta,
-                                     threshold,
-                                     minLineLength=minLineLength,
-                                     maxLineGap=maxLineGap)
-    # # get distance of each row
-    # dists = np.sqrt((lines[:, :, 0] - lines[:, :, 2]) ** 2 +
-    #                 (lines[:, :, 1] - lines[:, :, 3]) ** 2)
-    # dists[dists > 50]
-    # interesting_lines
+    # lines = find_lines_parameterized(edges, draw_on, rho, theta,
+    #                                  threshold,
+    #                                  minLineLength=minLineLength,
+    #                                  maxLineGap=maxLineGap)
+    # deduped_lines = deduplicate_lines(lines, 2)
+    deduped_lines = lines.squeeze()
+    vertices = None
 
-    print(lines)
+    for idx, l1 in enumerate(deduped_lines):
+        for l2 in deduped_lines[idx+1:]:
+            # print(l1, l2)
+            radial_distance = np.abs(l1[1] - l2[1])
+            if np.isclose(l1[1], l2[1], atol=np.radians(4)):
+                continue
 
-    cv2.waitKey(0)
-    raise NotImplementedError
+            if np.isclose(radial_distance,
+                          np.radians(90), atol=np.radians(10)):
+                x = solve_for_intersection(np.array([l1, l2]))
+                if vertices is None:
+                    vertices = x
+                else:
+                    vertices = np.vstack([vertices, x])
+    filtered_vertices = deduplicate_points(vertices, 3)
+
+    # pre_img = np.copy(img)
+    # for vertex in vertices:
+    #     cv2.circle(pre_img, (vertex[1], vertex[0]), 3,
+    #                (255, 255, 255), 1)
+    # cv2.imshow('edges', edges)
+    # cv2.imshow('Pre-filter', pre_img)
+    # post_img = np.copy(img)
+    # for vertex in filtered_vertices:
+    #     cv2.circle(post_img, (vertex[1], vertex[0]), 3,
+    #                (255, 255, 255), 1)
+    # cv2.imshow('Post-filter', post_img)
+    # cv2.waitKey(0)
+    center = parallelogram_centroid_from_vertices(filtered_vertices)
+    # print(center)
+    # cv2.circle(img, center, 3, (255, 255, 255), 1)
+    # cv2.imshow('img', img)
+    # cv2.waitKey(0)
+    return center
 
 
 def warning_sign_detection(img_in):
@@ -418,9 +695,39 @@ def warning_sign_detection(img_in):
     Returns:
         (x,y) tuple of the coordinates of the center of the sign.
     """
+    img = np.copy(img_in)
+    draw_on = np.copy(img_in)
 
-    # detect a stop sign
-    raise NotImplementedError
+    lower_white = np.array([0, 255, 255])
+    upper_white = np.array([0, 255, 255])
+
+    # Preprocessing
+    img = mask_image(img, lower_white, upper_white)
+    img = blur_image(img)
+    edges = canny(img)
+
+    # find the lines
+    rho = 1
+    theta = 36
+    threshold = 36
+
+    lines = find_lines(edges, rho, theta, threshold)
+    # lines = find_lines_parameterized(edges, draw_on, rho, theta,  threshold)
+    if lines is None:
+        return None
+    deduped_lines = deduplicate_lines(lines)
+    parallel_lines = group_parallel_lines(deduped_lines)
+    vertices = parallelogram_vertices_from_grouped_lines(parallel_lines)
+    # for vertex in vertices:
+    #     cv2.circle(img, (vertex[1], vertex[0]), 3,
+    #                (255, 255, 255), 1)
+
+    # cv2.imshow('Warning Sign Edges', edges)
+    # cv2.imshow('Warning Sign Masked', img)
+
+    # cv2.waitKey(0)
+
+    return parallelogram_centroid_from_vertices(vertices)
 
 
 def construction_sign_detection(img_in):
@@ -433,9 +740,39 @@ def construction_sign_detection(img_in):
     Returns:
         (x,y) tuple of the coordinates of the center of the sign.
     """
-    cv2.imshow('construction sign', img_in)
-    cv2.waitKey(0)
-    raise NotImplementedError
+    img = np.copy(img_in)
+    draw_on = np.copy(img_in)
+    upper = np.array([0, 128, 255])
+    lower = np.copy(upper)
+    img = mask_image(img, lower, upper)
+    img = blur_image(img)
+    edges = canny(img)
+
+    # find the lines
+    rho = 1
+    theta = 36
+    threshold = 36
+    lines = find_lines(edges, rho, theta, threshold)
+    # lines = find_lines_parameterized(edges, draw_on, rho, theta,
+    #  threshold)
+    # cv2.waitKey(0)
+    # print(lines)
+
+    lines = filter_angle(lines, [45, 135])
+
+    deduped_lines = deduplicate_lines(lines)
+
+    grouped_lines = group_parallel_lines(deduped_lines)
+    vertices = parallelogram_vertices_from_grouped_lines(grouped_lines)
+    center = parallelogram_centroid_from_vertices(vertices)
+
+    # for vertex in vertices:
+    #     draw_on = cv2.circle(draw_on, (vertex[1], vertex[0]), 3, (0, 0, 0), 1)
+    # draw_on = cv2.circle(draw_on, center, 3, (0, 0, 0), 1)
+
+    # cv2.imshow('construction sign', draw_on)
+    # cv2.waitKey(0)
+    return center
 
 
 def do_not_enter_sign_detection(img_in):
@@ -448,17 +785,20 @@ def do_not_enter_sign_detection(img_in):
     Returns:
         (x,y) typle of the coordinates of the center of the sign.
     """
-    img_in = np.copy(img_in)
-    # draw_on = np.copy(img_in)
-    img_gray = cv2.cvtColor(img_in, cv2.COLOR_BGR2GRAY)
-    # cv2.imshow("DO NOT ENTER", img_in)
-
+    img = np.copy(img_in)
+    draw_on = np.copy(img_in)
+    img = mask_image(img, np.array([0, 0, 255]), np.array([0, 0, 255]))
+    img = blur_image(img, 101)
+    img = cv2.bilateralFilter(img, 9, 75, 75)
+    # cv2.imshow("DO NOT ENTER", img)
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # cv2.imshow("GRAY", img_gray)
     dp = 3
     min_dist = 14
-    param1 = 16
-    param2 = 70
-    minradius = 7
-    maxradius = 38
+    param1 = 11
+    param2 = 65
+    minradius = 28
+    maxradius = 40
 
     # circles = find_circles_parameterized(img_gray, draw_on,
     #                                      dp=dp,
@@ -474,14 +814,10 @@ def do_not_enter_sign_detection(img_in):
                            minRadius=minradius,
                            maxRadius=maxradius)
 
-    # print(circles[0])
+    # cv2.waitKey(0)
     x = int(circles[0][0])
     y = int(circles[0][1])
-
-    # cv2.imshow('one way sign', img_in[y-40:y+40, x-40:x+40, :])
-    # cv2.waitKey(0)
-
-    return y, x  # reversed for numpy
+    return x, y  # reversed for numpy
 
 
 def traffic_sign_detection(img_in):
@@ -513,7 +849,38 @@ def traffic_sign_detection(img_in):
               These are just example values and may not represent a
               valid scene.
     """
-    raise NotImplementedError
+
+    sign_dict = {}
+    img = np.copy(img_in)
+
+    traffic_light_sign, _ = traffic_light_detection(img_in, range(7, 31))
+    if traffic_light_sign is not None:
+        sign_dict["traffic_light"] = traffic_light_sign
+
+    dne_sign = do_not_enter_sign_detection(img)
+    if dne_sign is not None:
+        sign_dict['no_entry'] = dne_sign
+
+    stop_sign = stop_sign_detection(img)
+    if stop_sign is not None:
+        sign_dict['stop'] = stop_sign
+
+    construction_sign = construction_sign_detection(img)
+    if construction_sign is not None:
+        sign_dict['construction'] = construction_sign
+
+    warning_sign = warning_sign_detection(img)
+    if warning_sign is not None:
+        sign_dict['warning'] = warning_sign
+
+    # cv2.imshow("Traffic Sign", img)
+    # cv2.waitKey(0)
+
+    yield_sign = yield_sign_detection(img)
+    if yield_sign:
+        sign_dict['yield_sign'] = yield_sign
+
+    return sign_dict
 
 
 def traffic_sign_detection_noisy(img_in):
@@ -545,7 +912,38 @@ def traffic_sign_detection_noisy(img_in):
               These are just example values and may not represent a
               valid scene.
     """
-    raise NotImplementedError
+
+    sign_dict = {}
+    img = np.copy(img_in)
+
+    traffic_light_sign, _ = traffic_light_detection(img_in, range(7, 31))
+    if traffic_light_sign is not None:
+        sign_dict["traffic_light"] = traffic_light_sign
+
+    dne_sign = do_not_enter_sign_detection(img)
+    if dne_sign is not None:
+        sign_dict['no_entry'] = dne_sign
+
+    stop_sign = stop_sign_detection(img)
+    if stop_sign is not None:
+        sign_dict['stop'] = stop_sign
+
+    construction_sign = construction_sign_detection(img)
+    if construction_sign is not None:
+        sign_dict['construction'] = construction_sign
+
+    warning_sign = warning_sign_detection(img)
+    if warning_sign is not None:
+        sign_dict['warning'] = warning_sign
+
+    # cv2.imshow("Traffic Sign", img)
+    # cv2.waitKey(0)
+
+    yield_sign = yield_sign_detection(img)
+    if yield_sign:
+        sign_dict['yield_sign'] = yield_sign
+
+    return sign_dict
 
 
 def traffic_sign_detection_challenge(img_in):

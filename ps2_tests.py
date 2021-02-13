@@ -12,6 +12,7 @@ in developing your algorithms.
 import cv2
 import unittest
 import ps2
+import experiment
 
 
 def check_result(label, coords, ref, tol):
@@ -189,6 +190,102 @@ class TestTrafficSignsScene(unittest.TestCase):
         coords = ps2.yield_sign_detection(test_image)
 
         check_result(image_name, coords, (358, 173), 5)
+
+
+class TestAllSignDetection(unittest.TestCase):
+
+    def setUp(self):
+        self.image_name = "scene_all_signs"
+        self.sign_img = cv2.imread(f"input_images/{self.image_name}.png")
+
+    def show_img(self, coords, sign_name, skip=False):
+        if skip is not True:
+            temp_dict = {}
+            temp_dict[sign_name] = coords
+            img_out = experiment.mark_traffic_signs(self.sign_img, temp_dict)
+            cv2.imshow(self.image_name, img_out)
+            cv2.waitKey(0)
+
+    def test_dne_sign(self):
+        coords = ps2.do_not_enter_sign_detection(self.sign_img)
+        self.show_img(coords, "dne", skip=True)
+        check_result(self.image_name, coords, (235, 334), 5)
+
+    def test_stop_sign(self):
+        coords = ps2.stop_sign_detection(self.sign_img)
+        self.show_img(coords, "stop", skip=True)
+        check_result(self.image_name, coords, (348, 348), 10)
+
+    def test_construction_sign(self):
+        coords = ps2.construction_sign_detection(self.sign_img)
+        self.show_img(coords, "construction", skip=True)
+        check_result(self.image_name, coords, (651, 348), 5)
+
+    def test_warning_sign(self):
+        coords = ps2.warning_sign_detection(self.sign_img)
+        self.show_img(coords, "warning", skip=True)
+        check_result(self.image_name, coords, (801, 349), 5)
+
+    def test_yield_sign(self):
+        coords = ps2.yield_sign_detection(self.sign_img)
+        self.show_img(coords, "yield", skip=True)
+        check_result(self.image_name, coords, (507, 335), 5)
+
+    def test_traffic_light(self):
+        coords, _ = ps2.traffic_light_detection(
+            self.sign_img, range(10, 30, 1))
+        self.show_img(coords, "light", skip=True)
+        check_result(self.image_name, coords, (115, 339), 5)
+
+    def test_all_correct(self):
+        sign_dict = ps2.traffic_sign_detection(self.sign_img)
+        img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        # print(sign_dict)
+        # cv2.imshow(self.image_name, img_out)
+        # cv2.waitKey(0)
+
+        sign_dict_empirical = {
+            'traffic_light': (115.0, 339.0),
+            'no_entry': (235, 334),
+            'stop': (348.59302, 348.1466),
+            'construction': (649.8311, 350.01782),
+            'warning': (799.73773, 350.01782),
+            'yield_sign': (507.20224, 337.9999694824219)}
+        for key in sign_dict_empirical.keys():
+            check_result(self.image_name,
+                         sign_dict[key],
+                         sign_dict_empirical[key],
+                         5)
+
+
+class TestSomeSignScene(unittest.TestCase):
+    def setUp(self):
+        self.image_name = "scene_some_signs"
+        self.sign_img = cv2.imread(f"input_images/{self.image_name}.png")
+
+    def test_all_correct(self):
+        sign_dict = ps2.traffic_sign_detection(self.sign_img)
+        img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        check_result(self.image_name, sign_dict['stop'], (548, 148), 5)
+        check_result(self.image_name, sign_dict['construction'], (849, 350), 5)
+        check_result(self.image_name, sign_dict['no_entry'], (150, 450), 5)
+        cv2.imshow(self.image_name, img_out)
+        cv2.waitKey(0)
+
+
+class TestNoisyImage(unittest.TestCase):
+    def setUp(self):
+        self.image_name = "scene_some_signs_noisy"
+        self.sign_img = cv2.imread(f"input_images/{self.image_name}.png")
+
+    def test_all_correct(self):
+        sign_dict = ps2.traffic_sign_detection(self.sign_img)
+        img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        cv2.imshow(self.image_name, img_out)
+        cv2.waitKey(0)
+        check_result(self.image_name, sign_dict['stop'], (548, 148), 5)
+        check_result(self.image_name, sign_dict['construction'], (849, 350), 5)
+        check_result(self.image_name, sign_dict['no_entry'], (150, 450), 5)
 
 
 if __name__ == "__main__":
