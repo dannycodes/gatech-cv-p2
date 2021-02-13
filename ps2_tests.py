@@ -234,7 +234,7 @@ class TestAllSignDetection(unittest.TestCase):
     def test_traffic_light(self):
         coords, _ = ps2.traffic_light_detection(
             self.sign_img, range(10, 30, 1))
-        self.show_img(coords, "light", skip=True)
+        self.show_img(coords, "light", skip=False)
         check_result(self.image_name, coords, (115, 339), 5)
 
     def test_all_correct(self):

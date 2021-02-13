@@ -158,54 +158,129 @@ def draw_lines_p(img, lines):
     return img
 
 
-def threshold_hsv(color_img, lowH, lowS, lowV, highH, highS, highV):
+def threshold_hsv(color_img, 
+                    low1,
+                    high1,
+                    low2=None,
+                    high2=None):
     hsv = cv2.cvtColor(color_img, cv2.COLOR_BGR2HSV)
+    threshold =  cv2.inRange(hsv, low1, high1)
+    if low2 is not None and high2 is not None:
+        threshold2 = cv2.inRange(hsv, low2, high2)
+        threshold = cv2.bitwise_or(threshold, threshold2)
+    return threshold
+
+def threshold_hsv_parameterized(color_img,
+                                low1,
+                                high1,
+                                low2=None,
+                                high2=None):
 
     TITLE_WINDOW = "Thresholding on HSV"
+    low_1_H = low1[0]
+    low_1_S = low1[1]
+    low_1_V = low1[2]
+
+    high_1_H = high1[0]
+    high_1_S = high1[1]
+    high_1_V = high1[2]
+
+    if low2 and high2:
+        print("Threshold or'd")
+        low_2_H = low2[0]
+        low_2_S = low2[1]
+        low_2_V = low2[2]
+
+        high_2_H = high2[0]
+        high_2_S = high2[1]
+        high_2_V = high2[2]
+        
 
     def do_threshold():
-        thresholded = cv2.inRange(
-            hsv, (lowH, lowS, lowV), (highH, highS, highV))
+        thresholded = threshold_hsv(color_img,
+                                    (low_1_H, low_1_S, low_1_V),
+                                    (high_1_H, high_1_S, high_1_V),
+                                    (low_2_H, low_2_S, low_2_V),
+                                    (high_2_H, high_2_S, high_2_V))
         cv2.imshow(TITLE_WINDOW, thresholded)
         return thresholded
 
-    def on_lowH(_lowH):
-        nonlocal lowH
-        lowH = _lowH
+    def on_low_1_H(_in):
+        nonlocal low_1_H
+        low_1_H = _in
         do_threshold()
 
-    def on_lowS(_lowS):
-        nonlocal lowS
-        lowS = _lowS
+    def on_low_1_S(_in):
+        nonlocal low_1_S
+        low_1_S = _in
         do_threshold()
 
-    def on_lowV(_lowV):
-        nonlocal lowV
-        lowV = _lowV
+    def on_low_1_V(_in):
+        nonlocal low_1_V
+        low_1_V = _in
         do_threshold()
 
-    def on_highH(_highH):
-        nonlocal highH
-        highH = _highH
+    def on_high_1_H(_in):
+        nonlocal high_1_H
+        high_1_H = _in
         do_threshold()
 
-    def on_highS(_highS):
-        nonlocal highS
-        highS = _highS
+    def on_high_1_S(_in):
+        nonlocal high_1_S
+        high_1_S = _in
         do_threshold()
 
-    def on_highV(_highV):
-        nonlocal highV
-        highV = _highV
+    def on_high_1_V(_in):
+        nonlocal high_1_V
+        high_1_V = _in
+        do_threshold()
+
+    def on_low_2_H(_in):
+        nonlocal low_2_H
+        low_2_H = _in
+        do_threshold()
+
+    def on_low_2_S(_in):
+        nonlocal low_2_S
+        low_2_S = _in
+        do_threshold()
+
+    def on_low_2_V(_in):
+        nonlocal low_2_V
+        low_2_V = _in
+        do_threshold()
+
+    def on_high_2_H(_in):
+        nonlocal high_2_H
+        high_2_H = _in
+        do_threshold()
+
+    def on_high_2_S(_in):
+        nonlocal high_2_S
+        high_2_S = _in
+        do_threshold()
+
+    def on_high_2_V(_in):
+        nonlocal high_2_V
+        high_2_V = _in
         do_threshold()
 
     cv2.namedWindow(TITLE_WINDOW)
-    cv2.createTrackbar("lowH", TITLE_WINDOW, lowH, 179, on_lowH)
-    cv2.createTrackbar("lowS", TITLE_WINDOW, lowS, 255, on_lowS)
-    cv2.createTrackbar("lowV", TITLE_WINDOW, lowV, 255, on_lowV)
-    cv2.createTrackbar("highH", TITLE_WINDOW, highH, 179, on_highH)
-    cv2.createTrackbar("highS", TITLE_WINDOW, highS, 255, on_highS)
-    cv2.createTrackbar("highV", TITLE_WINDOW, highV, 255, on_highV)
+    cv2.createTrackbar("low_1_H", TITLE_WINDOW, low_1_H, 179, on_low_1_H)
+    cv2.createTrackbar("low_1_S", TITLE_WINDOW, low_1_S, 255, on_low_1_S)
+    cv2.createTrackbar("low_1_V", TITLE_WINDOW, low_1_V, 255, on_low_1_V)
+    cv2.createTrackbar("high_1_H", TITLE_WINDOW, high_1_H, 179, on_high_1_H)
+    cv2.createTrackbar("high_1_S", TITLE_WINDOW, high_1_S, 255, on_high_1_S)
+    cv2.createTrackbar("high_1_V", TITLE_WINDOW, high_1_V, 255, on_high_1_V)
+
+    if low2 is not None and high2 is not None:
+        cv2.createTrackbar("low_2_H", TITLE_WINDOW, low_2_H, 179, on_low_2_H)
+        cv2.createTrackbar("lowS", TITLE_WINDOW, low_2_S, 255, on_low_2_S)
+        cv2.createTrackbar("lowV", TITLE_WINDOW, low_2_V, 255, on_low_2_V)
+        cv2.createTrackbar("highH", TITLE_WINDOW, high_2_H, 179, on_high_2_H)
+        cv2.createTrackbar("highS", TITLE_WINDOW, high_2_S, 255, on_high_2_S)
+        cv2.createTrackbar("highV", TITLE_WINDOW, high_2_V, 255, on_high_2_V)
+
     return do_threshold()
 
 
@@ -450,10 +525,7 @@ def traffic_light_detection(img_in, radii_range):
     img = np.copy(img_in)
     color_img = np.copy(img_in)
     img = cv2.GaussianBlur(img, (5, 5), 0)
-    cv2.imshow('gaussed', img)
-    draw_on = np.copy(img)
     img = blur_image(img, 5)
-    cv2.imshow('blurred', img)
 
     lowH = 0
     lowS = 0
@@ -461,10 +533,13 @@ def traffic_light_detection(img_in, radii_range):
     highH = 148
     highS = 255
     highV = 68
-    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     color_filtered_img = threshold_hsv(
         color_img, lowH, lowS, lowV, highH, highS, highV)
-    cv2.waitKey(0)
+
+    # TESTING
+    # color_filtered_img = threshold_hsv_parameterized(
+    #     color_img, lowH, lowS, lowV, highH, highS, highV)
+    # cv2.waitKey(0)
 
     ##
     # Hough Parameters (Found Experimentally)
@@ -473,8 +548,8 @@ def traffic_light_detection(img_in, radii_range):
     dp = 6
     min_dist = 17
     param1 = 39
-    param2 = 103
-    minradius = 14
+    param2 = 65
+    minradius = 6
     maxradius = 33
 
     # TESTING
@@ -498,16 +573,16 @@ def traffic_light_detection(img_in, radii_range):
     if circles is None:
         return None, None
 
-    # grab coordinates for yellow (should be middle circle)
-    # TODO Do this by color of found pixel?
     yellow_light = None
-    red_light = None
-    green_light = None
+    # red_light = None
+    # green_light = None
     on_light = None
 
     def check_on(hsv):
         # check if light is on
         return hsv[2] > 245
+
+    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     for circle in circles:
         x = int(circle[1])
@@ -785,13 +860,22 @@ def do_not_enter_sign_detection(img_in):
         (x,y) typle of the coordinates of the center of the sign.
     """
     img = np.copy(img_in)
-    draw_on = np.copy(img_in)
-    img = mask_image(img, np.array([0, 0, 255]), np.array([0, 0, 255]))
     img = blur_image(img, 101)
-    img = cv2.bilateralFilter(img, 9, 75, 75)
-    # cv2.imshow("DO NOT ENTER", img)
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # cv2.imshow("GRAY", img_gray)
+    color_img = np.copy(img)
+
+    cv2.imshow("DO NOT ENTER", img)
+
+    lowH = 0
+    lowS = 0
+    lowV = 15
+    highH = 148
+    highS = 255
+    highV = 68
+    color_filtered_img = threshold_hsv_parameterized(
+        color_img, lowH, lowS, lowV, highH, highS, highV)
+
+    cv2.waitKey(0)
+
     dp = 3
     min_dist = 14
     param1 = 11
@@ -799,15 +883,18 @@ def do_not_enter_sign_detection(img_in):
     minradius = 28
     maxradius = 40
 
-    # circles = find_circles_parameterized(img_gray, draw_on,
+    # draw_on = np.copy(img_in)
+    # circles = find_circles_parameterized(color_filtered_img,
+    #                                      draw_on,
     #                                      dp=dp,
     #                                      min_dist=min_dist,
     #                                      param1=param1,
     #                                      param2=param2,
     #                                      minradius=minradius,
     #                                      maxradius=maxradius)
+    # cv2.waitKey(0)
 
-    circles = find_circles(img_gray, dp, min_dist,
+    circles = find_circles(color_filtered_img, dp, min_dist,
                            param1=param1,
                            param2=param2,
                            minRadius=minradius,
