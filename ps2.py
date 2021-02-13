@@ -90,7 +90,7 @@ def deduplicate_points(vertices, dist=10):
 
 
 def deduplicate_lines(lines, atol=20):
-    """Takes lines from raw 
+    """Takes lines from raw
     output"""
     centers = []
     deduped_lines = None
@@ -206,7 +206,7 @@ def threshold_hsv(color_img, lowH, lowS, lowV, highH, highS, highV):
     cv2.createTrackbar("highH", TITLE_WINDOW, highH, 179, on_highH)
     cv2.createTrackbar("highS", TITLE_WINDOW, highS, 255, on_highS)
     cv2.createTrackbar("highV", TITLE_WINDOW, highV, 255, on_highV)
-    do_threshold()
+    return do_threshold()
 
 
 def find_lines_p(img, rho, theta, threshold, **kwargs):
@@ -369,7 +369,7 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
             for circle in circles:
 
                 cv2.circle(draw_on, (circle[0], circle[1]),
-                           circle[2], (0, 0, 0), 1)
+                           circle[2], (0, 0, 255), 1)
 
         # TOGGLE THIS IF YOU WANT TO WORK WITH PARAMS
         cv2.imshow(TITLE_WINDOW, draw_on)
@@ -450,88 +450,87 @@ def traffic_light_detection(img_in, radii_range):
     img = np.copy(img_in)
     color_img = np.copy(img_in)
     img = cv2.GaussianBlur(img, (5, 5), 0)
+    cv2.imshow('gaussed', img)
     draw_on = np.copy(img)
     img = blur_image(img, 5)
-    lowH = 1
-    lowS = 1
-    lowV = 1
-    highH = 10
+    cv2.imshow('blurred', img)
+
+    lowH = 0
+    lowS = 0
+    lowV = 15
+    highH = 148
     highS = 255
-    highV = 255
-    cv2.imshow("cimg", color_img)
-    threshold_hsv(color_img, lowH, lowS, lowV, highH, highS, highV)
-    cv2.waitKey()
-    img = mask_image(img, (51, 51, 51), (51, 51, 51))
-    hsv_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2HSV)
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    highV = 68
+    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    color_filtered_img = threshold_hsv(
+        color_img, lowH, lowS, lowV, highH, highS, highV)
+    cv2.waitKey(0)
 
     ##
     # Hough Parameters (Found Experimentally)
     ##
 
-    dp = 2
-    min_dist = 15
-    param1 = 34
-    param2 = 35
-    minradius = 1
-    maxradius = 31
-    cv2.imshow("grayed", img_gray)
-    circles = find_circles_parameterized(img_gray, draw_on,
-                                         dp=dp,
-                                         min_dist=min_dist,
-                                         param1=param1,
-                                         param2=param2,
-                                         minradius=minradius,
-                                         maxradius=maxradius)
-    cv2.waitKey(0)
+    dp = 6
+    min_dist = 17
+    param1 = 39
+    param2 = 103
+    minradius = 14
+    maxradius = 33
 
-    circles = find_circles(img_gray, dp, min_dist,
+    # TESTING
+    # draw_on = np.copy(img)
+    # circles = find_circles_parameterized(color_filtered_img, draw_on,
+    #                                      dp=dp,
+    #                                      min_dist=min_dist,
+    #                                      param1=param1,
+    #                                      param2=param2,
+    #                                      minradius=minradius,
+    #                                      maxradius=maxradius)
+    # cv2.waitKey(0)
+
+    circles = find_circles(color_filtered_img, dp, min_dist,
                            param1=param1,
                            param2=param2,
                            minRadius=minradius,
                            maxRadius=maxradius)
 
+    # Likely no traffic light in here
+    if circles is None:
+        return None, None
+
     # grab coordinates for yellow (should be middle circle)
     # TODO Do this by color of found pixel?
     yellow_light = None
+    red_light = None
+    green_light = None
+    on_light = None
+
+    def check_on(hsv):
+        # check if light is on
+        return hsv[2] > 245
+
     for circle in circles:
         x = int(circle[1])
         y = int(circle[0])
-        if hsv_img[x, y][0] == 30:
-            yellow_light = circle
+        hsv = hsv_img[x, y]
+        if 25 < hsv[0] < 35:
+            yellow_light = (y, x)
+            if check_on(hsv):
+                on_light = 'yellow'
+        if hsv[0] < 5 or hsv[0] > 175:
+            # red_light = (y, x)
+            if check_on(hsv):
+                on_light = 'red'
+        if 55 < hsv[0] < 65:
+            # green_light = (y, x)
+            if check_on(hsv):
+                on_light = 'green'
+
     if yellow_light is None:
         print("COULD NOT FIND YELLOW LIGHT")
         return None, None
-    coordinates = (yellow_light[0], yellow_light[1])
 
-    # Find the "brightest" light
-    # This will be the 'on' light
-    # TODO This logic might be brittle
-    overall_brightest = None
-    overall_brightest_name = None
-    for color_name, color in zip(['red', 'yellow', 'green'], circles):
-        x = int(np.floor(color[0]))
-        y = int(np.floor(color[1]))
-        # cv2.imshow(color_name, img_in[y-35:y+35, x-35:x+35, :])
-        center = img_in[y, x, :]
-
-        # Not good enough to do this naively, probably need to sum over
-        # or something
-        if color_name == "yellow":
-            max_brightness = np.sum(center) / 2
-        else:
-            max_brightness = np.sum(center)
-
-        # print(color_name, max_brightness, center)
-        if overall_brightest is None or max_brightness > overall_brightest:
-            overall_brightest = max_brightness
-            overall_brightest_name = color_name
-
-    # print(coordinates, overall_brightest_name)
-    # cv2.imshow("traffic light original", img_in)
-    # cv2.imshow("traffic light", draw_on)
-    # cv2.waitKey(0)
-    return coordinates, overall_brightest_name
+    return yellow_light, on_light
 
 
 def yield_sign_detection(img_in):

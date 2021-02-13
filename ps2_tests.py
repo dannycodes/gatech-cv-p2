@@ -281,6 +281,7 @@ class TestNoisyImage(unittest.TestCase):
     def test_all_correct(self):
         sign_dict = ps2.traffic_sign_detection(self.sign_img)
         img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        print(sign_dict)
         cv2.imshow(self.image_name, img_out)
         cv2.waitKey(0)
         check_result(self.image_name, sign_dict['stop'], (548, 148), 5)
