@@ -121,7 +121,6 @@ def part_1():
 
         tl = cv2.imread("input_images/{}.png".format(img_in))
         coords, state = ps2.traffic_light_detection(tl, radii_range)
-
         img_out = draw_tl_center(tl, coords, state)
         cv2.imwrite("output/{}.png".format(label), img_out)
 

@@ -234,12 +234,13 @@ class TestAllSignDetection(unittest.TestCase):
     def test_traffic_light(self):
         coords, _ = ps2.traffic_light_detection(
             self.sign_img, range(10, 30, 1))
-        self.show_img(coords, "light", skip=False)
+        self.show_img(coords, "light", skip=True)
         check_result(self.image_name, coords, (115, 339), 5)
 
     def test_all_correct(self):
         sign_dict = ps2.traffic_sign_detection(self.sign_img)
-        img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+
+        # img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
         # print(sign_dict)
         # cv2.imshow(self.image_name, img_out)
         # cv2.waitKey(0)
@@ -263,30 +264,116 @@ class TestSomeSignScene(unittest.TestCase):
         self.image_name = "scene_some_signs"
         self.sign_img = cv2.imread(f"input_images/{self.image_name}.png")
 
-    def test_all_correct(self):
+    def test_some_correct(self):
         sign_dict = ps2.traffic_sign_detection(self.sign_img)
-        img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
-        check_result(self.image_name, sign_dict['stop'], (548, 148), 5)
-        check_result(self.image_name, sign_dict['construction'], (849, 350), 5)
-        check_result(self.image_name, sign_dict['no_entry'], (150, 450), 5)
-        cv2.imshow(self.image_name, img_out)
-        cv2.waitKey(0)
+
+        # img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        # cv2.imshow(self.image_name, img_out)
+        # cv2.waitKey(0)
+
+        sign_dict_empirical = {
+            'no_entry': (151, 451),
+            'stop': (548, 148),
+            'construction': (849, 350.01782)}
+        for key in sign_dict_empirical.keys():
+            check_result(self.image_name,
+                         sign_dict[key],
+                         sign_dict_empirical[key],
+                         5)
 
 
 class TestNoisyImage(unittest.TestCase):
-    def setUp(self):
+    def test_some_noisy_correct(self):
         self.image_name = "scene_some_signs_noisy"
         self.sign_img = cv2.imread(f"input_images/{self.image_name}.png")
-
-    def test_all_correct(self):
         sign_dict = ps2.traffic_sign_detection(self.sign_img)
-        img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
-        print(sign_dict)
-        cv2.imshow(self.image_name, img_out)
-        cv2.waitKey(0)
-        check_result(self.image_name, sign_dict['stop'], (548, 148), 5)
-        check_result(self.image_name, sign_dict['construction'], (849, 350), 5)
-        check_result(self.image_name, sign_dict['no_entry'], (150, 450), 5)
+
+        sign_dict_empirical = {
+            'traffic_light': (872, 160),
+            'no_entry': (646, 245),
+            'warning': (400, 449),
+            'yield_sign': (156, 335)}
+
+        # cv2.imshow("Original Sign", self.sign_img)
+        # img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        # print(sign_dict_empirical)
+        # cv2.imshow(self.image_name, img_out)
+        # cv2.waitKey(0)
+
+        for key in sign_dict_empirical.keys():
+            print(key)
+            check_result(self.image_name,
+                         sign_dict[key],
+                         sign_dict_empirical[key],
+                         5)
+
+    def test_all_noisy_correct(self):
+        self.image_name = "scene_all_signs_noisy"
+        self.sign_img = cv2.imread(f"input_images/{self.image_name}.png")
+        sign_dict = ps2.traffic_sign_detection(self.sign_img)
+
+        sign_dict_empirical = {
+            'traffic_light': (472, 361),
+            'no_entry': (346, 444),
+            'stop': (650, 197),
+            'construction': (250, 198),
+            'warning': (799, 350),
+            'yield_sign': (157, 337)}
+
+        # cv2.imshow("Original Sign", self.sign_img)
+        # img_out = experiment.mark_traffic_signs(self.sign_img, sign_dict)
+        # print(sign_dict_empirical)
+        # cv2.imshow(self.image_name, img_out)
+        # cv2.waitKey(0)
+
+        for key in sign_dict_empirical.keys():
+            print(key)
+            check_result(self.image_name,
+                         sign_dict[key],
+                         sign_dict_empirical[key],
+                         5)
+
+
+class Part1Tests(unittest.TestCase):
+    def test_simple_tl(self):
+        image_name = "simple_tl"
+        tl = cv2.imread(f"input_images/{image_name}.png")
+        coords, state = ps2.traffic_light_detection(tl, range(10, 30, 1))
+        # img_out = experiment.draw_tl_center(tl, coords, state)
+        # cv2.imshow(image_name, img_out)
+        # cv2.waitKey(0)
+        check_result(image_name, coords, (136, 122), 5)
+
+    def test_scene_tl_1(self):
+        image_name = "scene_tl_1"
+        tl = cv2.imread(f"input_images/{image_name}.png")
+        coords, state = ps2.traffic_light_detection(tl, range(10, 30, 1))
+        # img_out = experiment.draw_tl_center(tl, coords, state)
+        # cv2.imshow(image_name, img_out)
+        # cv2.waitKey(0)
+        check_result(image_name, coords, (438,  249), 5)
+
+
+class Part2Tests(unittest.TestCase):
+    def test_scene_yld_1(self):
+        image_name = "scene_yld_1"
+        sign_img = cv2.imread(f"input_images/{image_name}.png")
+        coords = ps2.ps2_2_a_5(sign_img)
+        # temp_dict = {image_name: coords}
+        # img_out = experiment.mark_traffic_signs(sign_img, temp_dict)
+        # cv2.imshow(image_name, img_out)
+        # cv2.waitKey(0)
+        check_result(image_name, coords, (307, 182), 5)
+
+    def test_dne_1(self):
+        image_name = "scene_dne_1"
+        sign_img = cv2.imread(f"input_images/{image_name}.png")
+        coords = ps2.ps2_2_a_1(sign_img)
+        # temp_dict = {image_name: coords}
+        # img_out = experiment.mark_traffic_signs(sign_img, temp_dict)
+        # cv2.imshow(image_name, img_out)
+        # cv2.waitKey(0)
+        check_result(image_name, coords, (246, 346), 5)
 
 
 if __name__ == "__main__":
