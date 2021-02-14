@@ -376,5 +376,41 @@ class Part2Tests(unittest.TestCase):
         check_result(image_name, coords, (246, 346), 5)
 
 
+class Part5(unittest.TestCase):
+
+    def test_img_5_a_1(self):
+        img_in = 'img-5-a-1'
+        scene = cv2.imread(
+            f"input_images/challenge_images/{img_in}.png")
+
+        coords = ps2.ps2_5_a(scene.copy())
+        h, w = scene.shape[0:2]
+        neww = 800
+        newh = int(neww*(h/w))
+        n_img = cv2.resize(scene, (neww, newh))
+
+        img_out = experiment.mark_traffic_signs(n_img, coords)
+
+        # cv2.imshow(img_in, img_out)
+        # cv2.waitKey(0)
+
+    def test_img_5_a_2(self):
+        img_in = 'img-5-a-2'
+
+        scene = cv2.imread(
+            f"input_images/challenge_images/{img_in}.png")
+
+        coords = ps2.ps2_5_a(scene.copy())
+        h, w = scene.shape[0:2]
+        neww = 800
+        newh = int(neww*(h/w))
+        n_img = cv2.resize(scene, (neww, newh))
+
+        img_out = experiment.mark_traffic_signs(n_img, coords)
+
+        # cv2.imshow(img_in, img_out)
+        # cv2.waitKey(0)
+
+
 if __name__ == "__main__":
     unittest.main()

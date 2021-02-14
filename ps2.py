@@ -171,7 +171,7 @@ def canny_parameterized(img, lowThreshold, kernelSize):
 
     def do_canny():
         n_img = canny(img, lowThreshold, kernelSize)
-        cv2.imshow(TITLE_WINDOW, n_img)
+        # cv2.imshow(TITLE_WINDOW, n_img)
         return n_img
 
     def on_lowThreshold(_in):
@@ -190,7 +190,7 @@ def canny_parameterized(img, lowThreshold, kernelSize):
     cv2.createTrackbar("kernelSize", TITLE_WINDOW,
                        kernelSize, 255, on_kernelSize)
 
-    do_canny()
+    return do_canny()
 
 
 def threshold_hsv(color_img,
@@ -250,7 +250,7 @@ def threshold_hsv_parameterized(color_img,
             thresholded = threshold_hsv(color_img,
                                         (low_1_H, low_1_S, low_1_V),
                                         (high_1_H, high_1_S, high_1_V))
-        cv2.imshow(TITLE_WINDOW, thresholded)
+        # cv2.imshow(TITLE_WINDOW, thresholded)
         return thresholded
 
     def on_low_1_H(_in):
@@ -336,31 +336,32 @@ def threshold_hsv_parameterized(color_img,
 
 
 def draw_lines_p(img, lines):
-    lines = lines[0]
     for line in lines:
-        img = cv2.line(img, (line[0], line[1]),
-                       (line[2], line[3]), (255, 0, 0), 2)
+        line = line[0]
+        cv2.line(img, (line[0], line[1]),
+                 (line[2], line[3]), (255, 0, 0), 2)
     return img
 
 
-def find_lines_p(img, rho, theta, threshold, **kwargs):
-    return cv2.HoughLinesP(img, rho, np.radians(theta), threshold, **kwargs)
+def find_lines_p(img, rho, theta, threshold, minLineLength=None, maxLineGap=None):
+    return cv2.HoughLinesP(img, rho / 100, np.pi / theta, threshold, minLineLength, maxLineGap)
 
 
 def find_lines_p_parameterized(img, draw_on_img, rho, theta, threshold,
                                minLineLength=None,
                                maxLineGap=None):
     TITLE_WINDOW = "Hough P Line Stuff"
-    draw_on = np.copy(draw_on_img)
 
     def find_lines_for_params():
-        nonlocal draw_on
+        draw_on = np.copy(draw_on_img)
         found_lines = find_lines_p(img, rho, theta, threshold,
                                    minLineLength=minLineLength,
+
                                    maxLineGap=maxLineGap)
         if found_lines is not None:
+            print(len(found_lines))
             draw_on = draw_lines_p(draw_on, found_lines)
-            cv2.imshow(TITLE_WINDOW, draw_on)
+        # cv2.imshow(TITLE_WINDOW, draw_on)
         return found_lines
 
     def on_rho(_rho):
@@ -389,7 +390,7 @@ def find_lines_p_parameterized(img, draw_on_img, rho, theta, threshold,
         find_lines_for_params()
 
     cv2.namedWindow(TITLE_WINDOW)
-    cv2.createTrackbar("rho", TITLE_WINDOW, rho, 10, on_rho)
+    cv2.createTrackbar("rho", TITLE_WINDOW, rho, 1000, on_rho)
     cv2.createTrackbar("theta", TITLE_WINDOW, theta, 500, on_theta)
     cv2.createTrackbar("threshold", TITLE_WINDOW, threshold, 500, on_threshold)
     cv2.createTrackbar("minLineLength", TITLE_WINDOW,
@@ -400,7 +401,7 @@ def find_lines_p_parameterized(img, draw_on_img, rho, theta, threshold,
     return find_lines_for_params()
 
 
-def find_lines(img, rho, theta, threshold, **kwargs):
+def find_lines(img, rho, theta, threshold):
     return cv2.HoughLines(img, rho, np.pi / theta, threshold)
 
 
@@ -432,12 +433,11 @@ def find_lines_parameterized(img, draw_on_img,
 
     def find_lines_for_params():
         draw_on = np.copy(draw_on_img)
-        found_lines = find_lines(img, rho, theta, threshold,
-                                 minLineLength=minLineLength,
-                                 maxLineGap=maxLineGap)
+        found_lines = find_lines(img, rho, theta, threshold)
+        print(found_lines)
         if found_lines is not None:
             draw_on = draw_lines(draw_on, found_lines)
-            cv2.imshow(TITLE_WINDOW, draw_on)
+        # cv2.imshow(TITLE_WINDOW, draw_on)
 
         return found_lines
 
@@ -507,7 +507,7 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
                            circle[2], (255, 0, 0), 1)
 
         # TOGGLE THIS IF YOU WANT TO WORK WITH PARAMS
-        cv2.imshow(TITLE_WINDOW, draw_on)
+        # cv2.imshow(TITLE_WINDOW, draw_on)
         return circles
 
     def on_dp(_dp):
@@ -546,8 +546,9 @@ def find_circles_parameterized(img, draw_on_img, dp=None, min_dist=None,
     cv2.createTrackbar("param1", TITLE_WINDOW, param1, 100, on_param_1)
     cv2.createTrackbar("param2", TITLE_WINDOW, param2, 200, on_param_2)
     cv2.createTrackbar("minRadius", TITLE_WINDOW,
-                       minradius, 100, on_min_radius)
-    cv2.createTrackbar("maxRadius", TITLE_WINDOW, maxradius, 60, on_max_radius)
+                       minradius, 300, on_min_radius)
+    cv2.createTrackbar("maxRadius", TITLE_WINDOW,
+                       maxradius, 300, on_max_radius)
     return circle_param_finder()
 
 
@@ -694,9 +695,9 @@ def yield_sign_detection(img_in):
 
     lines = find_lines(edges, rho, theta, threshold)
 
-    draw_on = np.copy(img_in)
-    lines = find_lines_parameterized(edges, draw_on, rho, theta,
-                                     threshold)
+    # draw_on = np.copy(img_in)
+    # lines = find_lines_parameterized(edges, draw_on, rho, theta,
+    #                                  threshold)
 
     if lines is None:
         return None
@@ -1135,7 +1136,95 @@ def traffic_sign_detection_challenge(img_in):
               These are just example values and may not represent a
               valid scene.
     """
-    raise NotImplementedError
+    # stop sign
+    # or
+    # construction sign
+    img = np.copy(img_in)
+    signs = {}
+
+    construction_sign_center = part_5_construction(img)
+    stop_sign_center = part_5_stop(img)
+
+    if construction_sign_center is not None:
+        signs['construction'] = construction_sign_center
+    # centers = traffic_sign_detection_noisy(img_in)
+    if stop_sign_center is not None:
+        signs['stop'] = stop_sign_center
+
+    return signs
+
+
+def part_5_stop(img):
+    # blur
+    img = cv2.medianBlur(img, 65)
+
+    # https://stackoverflow.com/questions/58405119/how-to-resize-the-window-obtained-from-cv2-imshow
+    # shameless
+    h, w = img.shape[0:2]
+    neww = 800
+    newh = int(neww*(h/w))
+    img = cv2.resize(img, (neww, newh))
+
+    # color selection
+    low1 = (9, 195, 204)
+    high1 = (18, 255, 255)
+    hsv = threshold_hsv(img, low1, high1)
+
+    # edge detection
+    edges = canny(hsv, 50, 7)
+
+    # dilate for better signal
+    kernel = np.ones((5, 5), np.uint8)
+    dilate = cv2.dilate(edges, kernel, iterations=1)
+
+    # find lines
+    linesP = find_lines_p(dilate, 100, 180, 69, 73, 32)
+    if linesP is None:
+        return None
+    # dedup similars
+    lines = deduplicate_lines(linesP, 5)
+
+    # calc center
+    center = np.mean(lines.reshape(8, 2), axis=0)
+
+    return center
+
+
+def part_5_construction(img):
+    # blur
+    img = cv2.medianBlur(img, 65)
+    # https://stackoverflow.com/questions/58405119/how-to-resize-the-window-obtained-from-cv2-imshow
+    # shameless
+    h, w = img.shape[0:2]
+    neww = 800
+    newh = int(neww*(h/w))
+    img = cv2.resize(img, (neww, newh))
+
+    img = cv2.medianBlur(img, 95)
+
+    # color selection
+    low1 = (167, 57, 00)
+    high1 = (179, 255, 255)
+    hsv = threshold_hsv(img, low1, high1)
+    # edge detection
+    edges = canny(hsv, 50, 7)
+
+    # dilate for better signal
+    kernel = np.ones((5, 5), np.uint8)
+    dilate = cv2.dilate(edges, kernel, iterations=1)
+
+    # find lines
+    centers = find_circles(
+        dilate, 1, 36,
+        param1=10,
+        param2=6,
+        minRadius=128,
+        maxRadius=130)
+
+    if centers is None:
+        return None
+
+    return (centers[0][0], centers[0][1])
 
 
 # CHANGE BELOW FOR MORE CUSTOMIZATION ##

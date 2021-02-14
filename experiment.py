@@ -121,6 +121,7 @@ def part_1():
 
         tl = cv2.imread("input_images/{}.png".format(img_in))
         coords, state = ps2.traffic_light_detection(tl, radii_range)
+
         img_out = draw_tl_center(tl, coords, state)
         cv2.imwrite("output/{}.png".format(label), img_out)
 
@@ -192,7 +193,13 @@ def part_5a():
             "input_images/challenge_images/{}.png".format(img_in))
         coords = ps2.ps2_5_a(scene.copy())
 
-        img_out = mark_traffic_signs(scene, coords)
+        h, w = scene.shape[0:2]
+        neww = 800
+        newh = int(neww*(h/w))
+        n_img = cv2.resize(scene, (neww, newh))
+
+
+        img_out = mark_traffic_signs(n_img, coords)
         cv2.imwrite("output/{}.png".format(label), img_out)
 
 
